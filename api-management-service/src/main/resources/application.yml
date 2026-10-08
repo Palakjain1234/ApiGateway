@@ -7,7 +7,7 @@ spring:
 
   # ── MySQL ────────────────────────────────────────────────────────────────
   datasource:
-    url: jdbc:mysql://localhost:3306/gatekeeper_db?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+    url: jdbc:mysql://localhost:3307/gatekeeper_db?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
     username: gatekeeper
     password: gatekeeper123
     driver-class-name: com.mysql.cj.jdbc.Driver

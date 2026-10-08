@@ -27,7 +27,7 @@ services:
       MYSQL_USER: gatekeeper
       MYSQL_PASSWORD: gatekeeper123
     ports:
-      - "3306:3306"
+      - "3307:3306"   # 3306 is taken by local MySQL, using 3307 on host
     volumes:
       - mysql_data:/var/lib/mysql
     networks:
