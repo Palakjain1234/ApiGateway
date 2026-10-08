@@ -1,0 +1,22 @@
+# ── Maven ──────────────────────────────────────────
+target/
+*.class
+*.jar
+*.war
+*.ear
+
+# ── IDE ────────────────────────────────────────────
+.idea/
+*.iml
+.vscode/
+*.project
+*.classpath
+.settings/
+
+# ── Spring Boot ────────────────────────────────────
+*/src/main/resources/application-local.yml
+*.env
+
+# ── OS ─────────────────────────────────────────────
+.DS_Store
+Thumbs.db
