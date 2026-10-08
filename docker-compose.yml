@@ -1,19 +1,32 @@
 version: "3.9"
 
 # ─────────────────────────────────────────────────────────────────────────────
-# GateKeeper — Infrastructure
+# GateKeeper — Full Stack (Infrastructure + Application Services)
 #
-# Starts:
-#   mysql       → API Management data (port 3306)
-#   mongodb     → Analytics data      (port 27017)
-#   redis       → Rate limit / idempotency state (port 6379)
-#   zookeeper   → Required by Kafka   (port 2181)
-#   kafka       → Event streaming     (port 9092)
+# Infrastructure:
+#   mysql               → API Management data         (port 3306)
+#   mongodb             → Analytics data              (port 27017)
+#   redis               → Rate limit / idempotency    (port 6379)
+#   zookeeper           → Required by Kafka           (port 2181)
+#   kafka               → Event streaming             (port 9092)
+#
+# Application Services:
+#   api-management      → Control plane               (port 8080)
+#   smart-gateway       → Data plane / proxy          (port 8081)
+#   analytics           → Stats + event storage       (port 8082)
+#   catalog-service     → Demo tenant backend         (port 8091)
+#   order-service       → Demo tenant backend         (port 8092)
 #
 # Usage:
-#   docker-compose up -d          → start all infra in background
-#   docker-compose down           → stop and remove containers
-#   docker-compose down -v        → also remove volumes (wipes data)
+#   # Build all JARs first:
+#   mvn clean package -DskipTests
+#
+#   # Start everything:
+#   docker-compose up -d
+#
+#   # Stop everything:
+#   docker-compose down
+#   docker-compose down -v   (also removes volumes — wipes data)
 # ─────────────────────────────────────────────────────────────────────────────
 
 services:
@@ -148,3 +161,89 @@ volumes:
 networks:
   gatekeeper-network:
     driver: bridge
+
+  # ── Application Services ───────────────────────────────────────────────────
+
+  api-management:
+    build: ./api-management-service
+    container_name: gatekeeper-api-management
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/gatekeeper_db?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+      SPRING_DATASOURCE_USERNAME: gatekeeper
+      SPRING_DATASOURCE_PASSWORD: gatekeeper123
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+    depends_on:
+      mysql:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - gatekeeper-network
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  smart-gateway:
+    build: ./smart-gateway-service
+    container_name: gatekeeper-smart-gateway
+    restart: unless-stopped
+    ports:
+      - "8081:8081"
+    environment:
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      GATEKEEPER_MANAGEMENT_BASE_URL: http://api-management:8080
+    depends_on:
+      api-management:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - gatekeeper-network
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8081/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  analytics:
+    build: ./analytics-service
+    container_name: gatekeeper-analytics
+    restart: unless-stopped
+    ports:
+      - "8082:8082"
+    environment:
+      SPRING_DATA_MONGODB_URI: mongodb://gatekeeper:gatekeeper123@mongodb:27017/gatekeeper_analytics?authSource=admin
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - gatekeeper-network
+
+  catalog-service:
+    build: ./catalog-service
+    container_name: gatekeeper-catalog
+    restart: unless-stopped
+    ports:
+      - "8091:8091"
+    networks:
+      - gatekeeper-network
+
+  order-service:
+    build: ./order-service
+    container_name: gatekeeper-order
+    restart: unless-stopped
+    ports:
+      - "8092:8092"
+    networks:
+      - gatekeeper-network
