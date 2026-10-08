@@ -1,37 +1,22 @@
 version: "3.9"
 
 # ─────────────────────────────────────────────────────────────────────────────
-# GateKeeper — Full Stack (Infrastructure + Application Services)
+# GateKeeper — Full Stack
 #
-# Infrastructure:
-#   mysql               → API Management data         (port 3306)
-#   mongodb             → Analytics data              (port 27017)
-#   redis               → Rate limit / idempotency    (port 6379)
-#   zookeeper           → Required by Kafka           (port 2181)
-#   kafka               → Event streaming             (port 9092)
-#
-# Application Services:
-#   api-management      → Control plane               (port 8080)
-#   smart-gateway       → Data plane / proxy          (port 8081)
-#   analytics           → Stats + event storage       (port 8082)
-#   catalog-service     → Demo tenant backend         (port 8091)
-#   order-service       → Demo tenant backend         (port 8092)
+# Infrastructure:  mysql, mongodb, redis, zookeeper, kafka
+# App services:    api-management, smart-gateway, analytics, catalog, order
 #
 # Usage:
-#   # Build all JARs first:
-#   mvn clean package -DskipTests
-#
-#   # Start everything:
-#   docker-compose up -d
-#
-#   # Stop everything:
-#   docker-compose down
-#   docker-compose down -v   (also removes volumes — wipes data)
+#   Start infra only:   docker-compose up -d mysql mongodb redis zookeeper kafka
+#   Start everything:   docker-compose up -d
+#   Stop:               docker-compose down
+#   Wipe data:          docker-compose down -v
 # ─────────────────────────────────────────────────────────────────────────────
 
 services:
 
-  # ── MySQL ──────────────────────────────────────────────────────────────────
+  # ── Infrastructure ─────────────────────────────────────────────────────────
+
   mysql:
     image: mysql:8.0
     container_name: gatekeeper-mysql
@@ -53,7 +38,6 @@ services:
       timeout: 5s
       retries: 5
 
-  # ── MongoDB ────────────────────────────────────────────────────────────────
   mongodb:
     image: mongo:7.0
     container_name: gatekeeper-mongodb
@@ -74,7 +58,6 @@ services:
       timeout: 5s
       retries: 5
 
-  # ── Redis ──────────────────────────────────────────────────────────────────
   redis:
     image: redis:7.2-alpine
     container_name: gatekeeper-redis
@@ -91,7 +74,6 @@ services:
       timeout: 5s
       retries: 5
 
-  # ── Zookeeper (required by Kafka) ──────────────────────────────────────────
   zookeeper:
     image: confluentinc/cp-zookeeper:7.6.1
     container_name: gatekeeper-zookeeper
@@ -112,7 +94,6 @@ services:
       timeout: 5s
       retries: 5
 
-  # ── Kafka ──────────────────────────────────────────────────────────────────
   kafka:
     image: confluentinc/cp-kafka:7.6.1
     container_name: gatekeeper-kafka
@@ -123,7 +104,6 @@ services:
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      # Listeners: internal (container-to-container) + external (host machine)
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
       KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:29092,EXTERNAL://localhost:9092
       KAFKA_LISTENERS: INTERNAL://0.0.0.0:29092,EXTERNAL://0.0.0.0:9092
@@ -144,25 +124,7 @@ services:
       timeout: 10s
       retries: 5
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Named volumes (data persists across container restarts)
-# ─────────────────────────────────────────────────────────────────────────────
-volumes:
-  mysql_data:
-  mongodb_data:
-  redis_data:
-  zookeeper_data:
-  zookeeper_log:
-  kafka_data:
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Network (all services talk to each other on this bridge network)
-# ─────────────────────────────────────────────────────────────────────────────
-networks:
-  gatekeeper-network:
-    driver: bridge
-
-  # ── Application Services ───────────────────────────────────────────────────
+  # ── Application Services ────────────────────────────────────────────────────
 
   api-management:
     build: ./api-management-service
@@ -247,3 +209,21 @@ networks:
       - "8092:8092"
     networks:
       - gatekeeper-network
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Volumes
+# ─────────────────────────────────────────────────────────────────────────────
+volumes:
+  mysql_data:
+  mongodb_data:
+  redis_data:
+  zookeeper_data:
+  zookeeper_log:
+  kafka_data:
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Network
+# ─────────────────────────────────────────────────────────────────────────────
+networks:
+  gatekeeper-network:
+    driver: bridge
