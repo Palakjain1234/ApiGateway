@@ -31,6 +31,9 @@ gatekeeper:
   # API Management base URL — used to load route config at startup
   management:
     base-url: http://localhost:8080
+    # JWT for the gateway-service account (generated on first login)
+    # Replace this with a real token after first docker-compose up
+    gateway-token: REPLACE_WITH_GATEWAY_SERVICE_JWT
   jwt:
     secret: 404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970
   kafka:
