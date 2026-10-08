@@ -20,3 +20,6 @@ target/
 # ── OS ─────────────────────────────────────────────
 .DS_Store
 Thumbs.db
+
+gatekeeper-ui/node_modules/
+gatekeeper-ui/dist/
