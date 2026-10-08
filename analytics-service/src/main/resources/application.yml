@@ -1,0 +1,43 @@
+server:
+  port: 8082
+
+spring:
+  application:
+    name: analytics-service
+
+  # ── MongoDB ──────────────────────────────────────────────────────────────
+  data:
+    mongodb:
+      uri: mongodb://gatekeeper:gatekeeper123@localhost:27017/gatekeeper_analytics?authSource=admin
+      database: gatekeeper_analytics
+
+  # ── Kafka ────────────────────────────────────────────────────────────────
+  kafka:
+    bootstrap-servers: localhost:9092
+    consumer:
+      group-id: analytics-group
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: "com.gatekeeper.*"
+
+# ── GateKeeper config ────────────────────────────────────────────────────
+gatekeeper:
+  kafka:
+    topics:
+      access-events: gatekeeper.access.events
+
+# ── Actuator ─────────────────────────────────────────────────────────────
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: always
+
+logging:
+  level:
+    com.gatekeeper: DEBUG

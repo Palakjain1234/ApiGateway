@@ -1,0 +1,57 @@
+server:
+  port: 8081
+
+spring:
+  application:
+    name: smart-gateway-service
+
+  # ── Redis ────────────────────────────────────────────────────────────────
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      timeout: 2000ms
+
+  # ── Kafka ────────────────────────────────────────────────────────────────
+  kafka:
+    bootstrap-servers: localhost:9092
+    consumer:
+      group-id: smart-gateway-group
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: "com.gatekeeper.*"
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+
+# ── GateKeeper config ────────────────────────────────────────────────────
+gatekeeper:
+  # API Management base URL — used to load route config at startup
+  management:
+    base-url: http://localhost:8080
+  jwt:
+    secret: 404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970
+  kafka:
+    topics:
+      route-changes: gatekeeper.route.changes
+      access-events: gatekeeper.access.events
+  # Default policy when Redis is unavailable: fail-closed
+  policy:
+    fail-closed: true
+
+# ── Actuator ─────────────────────────────────────────────────────────────
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: always
+
+logging:
+  level:
+    com.gatekeeper: DEBUG
+    org.springframework.security: INFO
