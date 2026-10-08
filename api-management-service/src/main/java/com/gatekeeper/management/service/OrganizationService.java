@@ -1,5 +1,6 @@
 package com.gatekeeper.management.service;
 
+import com.gatekeeper.management.audit.Auditable;
 import com.gatekeeper.management.dto.request.CreateOrganizationRequest;
 import com.gatekeeper.management.dto.request.CreateTenantAdminRequest;
 import com.gatekeeper.management.dto.response.ManagementUserResponse;
@@ -62,6 +63,7 @@ public class OrganizationService {
     // ── Write operations (PLATFORM_ADMIN only) ───────────────────────────────
 
     @Transactional
+    @Auditable(action = "CREATE_ORGANIZATION", resourceType = "ORGANIZATION")
     public OrganizationResponse createOrganization(CreateOrganizationRequest request) {
         if (orgRepository.existsBySlug(request.getSlug())) {
             throw new ConflictException(
@@ -80,6 +82,7 @@ public class OrganizationService {
     }
 
     @Transactional
+    @Auditable(action = "ACTIVATE_ORGANIZATION", resourceType = "ORGANIZATION")
     public OrganizationResponse activateOrganization(Long id) {
         Organization org = findOrThrow(id);
         if (org.getStatus() == OrganizationStatus.DELETED) {
@@ -90,6 +93,7 @@ public class OrganizationService {
     }
 
     @Transactional
+    @Auditable(action = "SUSPEND_ORGANIZATION", resourceType = "ORGANIZATION")
     public OrganizationResponse suspendOrganization(Long id) {
         Organization org = findOrThrow(id);
         if (org.getStatus() == OrganizationStatus.DELETED) {
@@ -100,6 +104,7 @@ public class OrganizationService {
     }
 
     @Transactional
+    @Auditable(action = "DELETE_ORGANIZATION", resourceType = "ORGANIZATION")
     public void deleteOrganization(Long id) {
         Organization org = findOrThrow(id);
         // Soft delete — preserve data for historical purposes
@@ -116,6 +121,7 @@ public class OrganizationService {
      * Enforces the one-admin-per-org rule.
      */
     @Transactional
+    @Auditable(action = "CREATE_TENANT_ADMIN", resourceType = "MANAGEMENT_USER")
     public ManagementUserResponse createTenantAdmin(Long orgId, CreateTenantAdminRequest request) {
         Organization org = findOrThrow(orgId);
 

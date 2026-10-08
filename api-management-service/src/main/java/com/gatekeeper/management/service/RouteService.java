@@ -1,17 +1,19 @@
 package com.gatekeeper.management.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.gatekeeper.management.audit.Auditable;
 import com.gatekeeper.management.dto.request.CreateRouteRequest;
 import com.gatekeeper.management.dto.request.UpdateRouteRequest;
 import com.gatekeeper.management.dto.response.ActiveRouteConfigResponse;
 import com.gatekeeper.management.dto.response.RouteResponse;
 import com.gatekeeper.management.dto.response.RouteVersionResponse;
 import com.gatekeeper.management.entity.*;
-import com.gatekeeper.management.enums.HeaderAction;
 import com.gatekeeper.management.enums.RouteChangeType;
 import com.gatekeeper.management.exception.BadRequestException;
 import com.gatekeeper.management.exception.ConflictException;
 import com.gatekeeper.management.exception.ResourceNotFoundException;
+import com.gatekeeper.management.kafka.RouteChangeEvent;
+import com.gatekeeper.management.kafka.RouteEventPublisher;
 import com.gatekeeper.management.mapper.RouteMapper;
 import com.gatekeeper.management.repository.*;
 import lombok.RequiredArgsConstructor;
@@ -44,6 +46,7 @@ public class RouteService {
     private final RouteConfigurationVersionRepository   versionRepository;
     private final RouteMapper                           routeMapper;
     private final ObjectMapper                          objectMapper;
+    private final RouteEventPublisher                   eventPublisher;
 
     // ── Read operations ──────────────────────────────────────────────────────
 
@@ -77,6 +80,7 @@ public class RouteService {
     // ── Write operations (TENANT_ADMIN, scoped to their org) ─────────────────
 
     @Transactional
+    @Auditable(action = "CREATE_ROUTE", resourceType = "ROUTE")
     public RouteResponse createRoute(Long orgId, CreateRouteRequest request) {
         Organization org = findOrgOrThrow(orgId);
 
@@ -117,12 +121,14 @@ public class RouteService {
 
         ApiRoute saved = routeRepository.save(route);
         saveVersion(saved, RouteChangeType.CREATED);
+        publishEvent(saved, RouteChangeType.CREATED);
 
         log.info("Route created: {}/{}", org.getSlug(), saved.getRouteId());
         return routeMapper.toResponse(saved);
     }
 
     @Transactional
+    @Auditable(action = "UPDATE_ROUTE", resourceType = "ROUTE")
     public RouteResponse updateRoute(Long orgId, String routeId, UpdateRouteRequest request) {
         ApiRoute route = findRouteOrThrow(orgId, routeId);
 
@@ -156,6 +162,7 @@ public class RouteService {
 
         ApiRoute saved = routeRepository.save(route);
         saveVersion(saved, RouteChangeType.UPDATED);
+        publishEvent(saved, RouteChangeType.UPDATED);
 
         log.info("Route updated: {}/{} (v{})", route.getOrganization().getSlug(),
                 routeId, saved.getConfigurationVersion());
@@ -163,6 +170,7 @@ public class RouteService {
     }
 
     @Transactional
+    @Auditable(action = "ACTIVATE_ROUTE", resourceType = "ROUTE")
     public RouteResponse activateRoute(Long orgId, String routeId) {
         ApiRoute route = findRouteOrThrow(orgId, routeId);
         if (route.isActive()) {
@@ -172,10 +180,12 @@ public class RouteService {
         route.setConfigurationVersion(route.getConfigurationVersion() + 1);
         ApiRoute saved = routeRepository.save(route);
         saveVersion(saved, RouteChangeType.ACTIVATED);
+        publishEvent(saved, RouteChangeType.ACTIVATED);
         return routeMapper.toResponse(saved);
     }
 
     @Transactional
+    @Auditable(action = "DEACTIVATE_ROUTE", resourceType = "ROUTE")
     public RouteResponse deactivateRoute(Long orgId, String routeId) {
         ApiRoute route = findRouteOrThrow(orgId, routeId);
         if (!route.isActive()) {
@@ -185,14 +195,17 @@ public class RouteService {
         route.setConfigurationVersion(route.getConfigurationVersion() + 1);
         ApiRoute saved = routeRepository.save(route);
         saveVersion(saved, RouteChangeType.DEACTIVATED);
+        publishEvent(saved, RouteChangeType.DEACTIVATED);
         return routeMapper.toResponse(saved);
     }
 
     @Transactional
+    @Auditable(action = "DELETE_ROUTE", resourceType = "ROUTE")
     public void deleteRoute(Long orgId, String routeId) {
         ApiRoute route = findRouteOrThrow(orgId, routeId);
         // Save history BEFORE deleting the live route
         saveVersion(route, RouteChangeType.DELETED);
+        publishEvent(route, RouteChangeType.DELETED);
         routeRepository.delete(route);
         log.info("Route deleted: {}/{}", route.getOrganization().getSlug(), routeId);
     }
@@ -253,5 +266,18 @@ public class RouteService {
     private String currentUsername() {
         var auth = SecurityContextHolder.getContext().getAuthentication();
         return auth != null ? auth.getName() : "system";
+    }
+
+    /** Publishes a Kafka event so Smart Gateway knows to refresh its registry. */
+    private void publishEvent(ApiRoute route, RouteChangeType changeType) {
+        RouteChangeEvent event = RouteChangeEvent.builder()
+                .organizationSlug(route.getOrganization().getSlug())
+                .routeId(route.getRouteId())
+                .changeType(changeType)
+                .configurationVersion(route.getConfigurationVersion())
+                .changedBy(currentUsername())
+                .occurredAt(java.time.LocalDateTime.now())
+                .build();
+        eventPublisher.publish(event);
     }
 }
